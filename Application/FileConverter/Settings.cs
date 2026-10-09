@@ -271,7 +271,7 @@ namespace FileConverter
                 else
                 {
                     Diagnostics.Debug.Log($"Can't find supported culture info for culture {currentUICulture}. Fallback to default culture.");
-                    this.ApplicationLanguage = CultureInfo.GetCultureInfo("en");
+                    this.ApplicationLanguage = CultureInfo.GetCultureInfo("pt-PT");
                 }
             }
         }
