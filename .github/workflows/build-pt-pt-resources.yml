@@ -17,7 +17,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout localization branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: localization/pt-PT-review
 
@@ -28,30 +28,45 @@ jobs:
           $outDir = "$env:RUNNER_TEMP\pt-PT"
           New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
+          # Locate ResGen.exe using Visual Studio's locator, then search the
+          # installed Visual Studio trees as a fallback.
           $vswhere = Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio\Installer\vswhere.exe"
           $resgenPath = $null
           if (Test-Path $vswhere) {
-            $resgenPath = & $vswhere -latest -products '*' -find '**\ResGen.exe' | Select-Object -First 1
+            $matches = & $vswhere -latest -products '*' -find '**\ResGen.exe' 2>$null
+            $resgenPath = $matches | Where-Object { Test-Path $_ } | Select-Object -First 1
           }
+
           if (-not $resgenPath) {
-            $candidatePaths = @(
-              (Join-Path $env:ProgramFiles "Microsoft Visual Studio\18\Enterprise\MSBuild\Current\Bin\ResGen.exe"),
-              (Join-Path $env:ProgramFiles "Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\ResGen.exe"),
-              (Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\ResGen.exe")
-            )
-            $resgenPath = $candidatePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+            $vsRoots = @(
+              (Join-Path $env:ProgramFiles "Microsoft Visual Studio"),
+              (Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio")
+            ) | Where-Object { Test-Path $_ }
+
+            foreach ($root in $vsRoots) {
+              $found = Get-ChildItem -Path $root -Filter ResGen.exe -File -Recurse -ErrorAction SilentlyContinue |
+                Select-Object -First 1
+              if ($found) {
+                $resgenPath = $found.FullName
+                break
+              }
+            }
           }
-          $resgen = if ($resgenPath) { Get-Item $resgenPath }
-                    if (-not $resgen) { throw "ResGen.exe was not found on the Windows runner." }
+
+          if (-not $resgenPath) {
+            throw "ResGen.exe was not found. The Windows runner may not have the required Visual Studio build tools installed."
+          }
 
           $alPath = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\al.exe"
-          $al = if (Test-Path $alPath) { Get-Item $alPath }
-          if (-not $al) { throw "al.exe was not found on the Windows runner." }
+          if (-not (Test-Path $alPath)) {
+            $alPath = Join-Path $env:WINDIR "Microsoft.NET\Framework\v4.0.30319\al.exe"
+          }
+          if (-not (Test-Path $alPath)) { throw "al.exe was not found on the Windows runner." }
 
-          & $resgen.FullName $resx "$outDir\FileConverter.resources.pt-PT.resources"
+          & $resgenPath $resx "$outDir\FileConverter.resources.pt-PT.resources"
           if ($LASTEXITCODE -ne 0) { throw "ResGen failed with exit code $LASTEXITCODE" }
 
-          & $al.FullName /t:lib /culture:pt-PT /embed:"$outDir\FileConverter.resources.pt-PT.resources" /out:"$outDir\FileConverter.resources.dll"
+          & $alPath /t:lib /culture:pt-PT /embed:"$outDir\FileConverter.resources.pt-PT.resources" /out:"$outDir\FileConverter.resources.dll"
           if ($LASTEXITCODE -ne 0) { throw "Assembly Linker failed with exit code $LASTEXITCODE" }
 
           if (-not (Test-Path "$outDir\FileConverter.resources.dll")) { throw "Satellite assembly was not produced." }
