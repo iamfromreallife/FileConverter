@@ -173,20 +173,8 @@ namespace FileConverter
 
         public static IEnumerable<CultureInfo> GetSupportedCultures()
         {
-            // Get all cultures.
-            CultureInfo[] cultures = CultureInfo.GetCultures(CultureTypes.AllCultures);
-
-            // Find the location where application installed.
-            string exeLocation = Path.GetDirectoryName(Uri.UnescapeDataString(new UriBuilder(Assembly.GetExecutingAssembly().CodeBase).Path));
-
-            // Return all culture for which satellite folder found with culture code.
-            foreach (CultureInfo cultureInfo in cultures)
-            {
-                if (!string.IsNullOrEmpty(cultureInfo.Name) && Directory.Exists(Path.Combine(exeLocation, "Languages", cultureInfo.Name)))
-                {
-                    yield return cultureInfo;
-                }
-            }
+            // This build intentionally supports only Portuguese (Portugal).
+            yield return CultureInfo.GetCultureInfo("pt-PT");
         }
 
         public static bool IsOutputTypeCompatibleWithCategory(OutputType outputType, string category)
