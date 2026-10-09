@@ -52,13 +52,15 @@ jobs:
           msbuild FileConverter.sln /m /p:Configuration=Release /p:Platform=x64 /p:RestoreIgnoreFailedSources=true
           if ($LASTEXITCODE -ne 0) { throw "Solution build failed with exit code $LASTEXITCODE" }
 
-          $ptPtDll = Get-ChildItem Application/FileConverter -Filter "FileConverter.resources.dll" -Recurse -File |
-            Where-Object { $_.FullName -match '[\\/]Languages[\\/]pt-PT[\\/]FileConverter\.resources\.dll$' } |
-            Select-Object -First 1 -ExpandProperty FullName
-          if (-not $ptPtDll) {
-            throw "The pt-PT satellite resource DLL was not produced by the application build."
+          $satelliteDll = Get-ChildItem Application/FileConverter/bin/x64/Release -Filter "FileConverter.resources.dll" -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($satelliteDll) {
+            throw "Unexpected satellite resource assembly found: $($satelliteDll.FullName)"
           }
-          Write-Host "Verified pt-PT resource assembly: $ptPtDll"
+          $languageRoot = "Application/FileConverter/bin/x64/Release/Languages"
+          if (Test-Path $languageRoot) {
+            throw "Unexpected Languages folder was generated: $languageRoot"
+          }
+          Write-Host "Verified: Portuguese resources are embedded in the main assembly; no language folders or satellite DLLs were generated."
 
       - name: Build MSI installer
         shell: pwsh
