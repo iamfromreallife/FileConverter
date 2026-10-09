@@ -28,19 +28,17 @@ jobs:
           $outDir = "$env:RUNNER_TEMP\pt-PT"
           New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
-          $vsRoots = @(
-            (Join-Path $env:ProgramFiles "Microsoft Visual Studio"),
-            (Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio")
-          )
-          $resgen = $null
-          foreach ($vsRoot in $vsRoots) {
-            if (Test-Path $vsRoot) {
-              $resgen = Get-ChildItem $vsRoot -Filter ResGen.exe -File -Recurse -ErrorAction SilentlyContinue |
-                Sort-Object FullName -Descending | Select-Object -First 1
-              if ($resgen) { break }
-            }
+          $vswhere = Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio\Installer\vswhere.exe"
+          $resgenPath = $null
+          if (Test-Path $vswhere) {
+            $resgenPath = & $vswhere -latest -products '*' -find 'MSBuild\Current\Bin\ResGen.exe' | Select-Object -First 1
           }
-          if (-not $resgen) { throw "ResGen.exe was not found on the Windows runner." }
+          if (-not $resgenPath) {
+            $resgenPath = Get-ChildItem "${env:ProgramFiles}\Microsoft Visual Studio" -Filter ResGen.exe -File -Recurse -ErrorAction SilentlyContinue |
+              Select-Object -ExpandProperty FullName -First 1
+          }
+          $resgen = if ($resgenPath) { Get-Item $resgenPath }
+                    if (-not $resgen) { throw "ResGen.exe was not found on the Windows runner." }
 
           $alPath = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\al.exe"
           $al = if (Test-Path $alPath) { Get-Item $alPath }
