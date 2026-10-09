@@ -48,7 +48,7 @@ jobs:
           </Project>
           '@
           $resourcePath = (Resolve-Path "Application/FileConverter/Properties/Resources.pt-PT.resx").Path
-          $project = $project.Replace("RESOURCE_FILE", $resourcePath.Replace("", "/"))
+          $project = $project.Replace("RESOURCE_FILE", $resourcePath.Replace([string][char]92, "/"))
           Set-Content -Path "$projectDir\FileConverter.csproj" -Value $project -Encoding utf8
 
           dotnet build "$projectDir\FileConverter.csproj" --configuration Release --output "$outDir\build"
