@@ -1,4 +1,4 @@
-name: Build FileConverter MSI (pt-PT)
+name: Build FileConverter MSI (pt-PT) 
 
 on:
   workflow_dispatch:
