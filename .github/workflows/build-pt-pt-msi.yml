@@ -31,6 +31,15 @@ jobs:
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
 
+      - name: Configure unsigned build (signing config is not included in source)
+        shell: pwsh
+        run: |
+          $signConfig = "Installer/Installer.sign"
+          if (-not (Test-Path $signConfig)) {
+            Set-Content -Path $signConfig -Value '<Project />' -Encoding utf8
+            Write-Host "Created a minimal unsigned-build config because Installer.sign is not present."
+          }
+
       - name: Build application and extension
         shell: pwsh
         run: |
