@@ -24,52 +24,42 @@ jobs:
       - name: Compile only the pt-PT resource assembly
         shell: pwsh
         run: |
-          $resx = "Application/FileConverter/Properties/Resources.pt-PT.resx"
           $outDir = "$env:RUNNER_TEMP\pt-PT"
-          New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+          $projectDir = "$env:RUNNER_TEMP\pt-PT-project"
+          New-Item -ItemType Directory -Force -Path $outDir, $projectDir | Out-Null
 
-          # Locate ResGen.exe using Visual Studio's locator, then search the
-          # installed Visual Studio trees as a fallback.
-          $vswhere = Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio\Installer\vswhere.exe"
-          $resgenPath = $null
-          if (Test-Path $vswhere) {
-            $matches = & $vswhere -latest -products '*' -find '**\ResGen.exe' 2>$null
-            $resgenPath = $matches | Where-Object { Test-Path $_ } | Select-Object -First 1
-          }
+          # Use the installed .NET SDK/MSBuild resource pipeline instead of
+          # relying on ResGen.exe being present in a particular VS directory.
+          $project = @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net8.0</TargetFramework>
+              <AssemblyName>FileConverter</AssemblyName>
+              <RootNamespace>FileConverter</RootNamespace>
+              <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+              <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+            </PropertyGroup>
+            <ItemGroup>
+              <EmbeddedResource Include="RESOURCE_FILE">
+                <Culture>pt-PT</Culture>
+                <LogicalName>FileConverter.Properties.Resources.resources</LogicalName>
+              </EmbeddedResource>
+            </ItemGroup>
+          </Project>
+          '@
+          $resourcePath = (Resolve-Path "Application/FileConverter/Properties/Resources.pt-PT.resx").Path
+          $project = $project.Replace("RESOURCE_FILE", $resourcePath.Replace("", "/"))
+          Set-Content -Path "$projectDir\FileConverter.csproj" -Value $project -Encoding utf8
 
-          if (-not $resgenPath) {
-            $vsRoots = @(
-              (Join-Path $env:ProgramFiles "Microsoft Visual Studio"),
-              (Join-Path "${env:ProgramFiles(x86)}" "Microsoft Visual Studio")
-            ) | Where-Object { Test-Path $_ }
+          dotnet build "$projectDir\FileConverter.csproj" --configuration Release --output "$outDir\build"
+          if ($LASTEXITCODE -ne 0) { throw "dotnet build failed with exit code $LASTEXITCODE" }
 
-            foreach ($root in $vsRoots) {
-              $found = Get-ChildItem -Path $root -Filter ResGen.exe -File -Recurse -ErrorAction SilentlyContinue |
-                Select-Object -First 1
-              if ($found) {
-                $resgenPath = $found.FullName
-                break
-              }
-            }
-          }
+          $builtDll = Get-ChildItem -Path "$outDir\build" -Filter "FileConverter.resources.dll" -Recurse -File |
+            Select-Object -First 1
+          if (-not $builtDll) { throw "The pt-PT satellite assembly was not produced." }
 
-          if (-not $resgenPath) {
-            throw "ResGen.exe was not found. The Windows runner may not have the required Visual Studio build tools installed."
-          }
-
-          $alPath = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\al.exe"
-          if (-not (Test-Path $alPath)) {
-            $alPath = Join-Path $env:WINDIR "Microsoft.NET\Framework\v4.0.30319\al.exe"
-          }
-          if (-not (Test-Path $alPath)) { throw "al.exe was not found on the Windows runner." }
-
-          & $resgenPath $resx "$outDir\FileConverter.resources.pt-PT.resources"
-          if ($LASTEXITCODE -ne 0) { throw "ResGen failed with exit code $LASTEXITCODE" }
-
-          & $alPath /t:lib /culture:pt-PT /embed:"$outDir\FileConverter.resources.pt-PT.resources" /out:"$outDir\FileConverter.resources.dll"
-          if ($LASTEXITCODE -ne 0) { throw "Assembly Linker failed with exit code $LASTEXITCODE" }
-
-          if (-not (Test-Path "$outDir\FileConverter.resources.dll")) { throw "Satellite assembly was not produced." }
+          Copy-Item $builtDll.FullName "$outDir\FileConverter.resources.dll" -Force
+          if ((Get-Item "$outDir\FileConverter.resources.dll").Length -le 0) { throw "The produced DLL is empty." }
 
       - name: Upload only FileConverter.resources.dll
         uses: actions/upload-artifact@v4
