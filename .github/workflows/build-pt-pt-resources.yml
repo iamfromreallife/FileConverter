@@ -1,0 +1,56 @@
+name: Build pt-PT satellite resource DLL
+
+on:
+  push:
+    branches:
+      - localization/pt-PT-review
+    paths:
+      - 'Application/FileConverter/Properties/Resources.pt-PT.resx'
+      - '.github/workflows/build-pt-pt-resources.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-resource-dll:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout localization branch
+        uses: actions/checkout@v4
+        with:
+          ref: localization/pt-PT-review
+
+      - name: Compile only the pt-PT resource assembly
+        shell: pwsh
+        run: |
+          $resx = "Application/FileConverter/Properties/Resources.pt-PT.resx"
+          $outDir = "$env:RUNNER_TEMP\pt-PT"
+          New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+
+          $resgen = Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft SDKs\Windows\**\ResGen.exe" -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $resgen) {
+            $resgen = Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft Visual Studio\**\ResGen.exe" -ErrorAction SilentlyContinue |
+              Sort-Object FullName -Descending | Select-Object -First 1
+          }
+          if (-not $resgen) { throw "ResGen.exe was not found on the Windows runner." }
+
+          $al = Get-ChildItem "${env:WINDIR}\Microsoft.NET\Framework64\**\al.exe" -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $al) { throw "al.exe was not found on the Windows runner." }
+
+          & $resgen.FullName $resx "$outDir\FileConverter.resources.pt-PT.resources"
+          if ($LASTEXITCODE -ne 0) { throw "ResGen failed with exit code $LASTEXITCODE" }
+
+          & $al.FullName /t:lib /culture:pt-PT /embed:"$outDir\FileConverter.resources.pt-PT.resources" /out:"$outDir\FileConverter.resources.dll"
+          if ($LASTEXITCODE -ne 0) { throw "Assembly Linker failed with exit code $LASTEXITCODE" }
+
+          if (-not (Test-Path "$outDir\FileConverter.resources.dll")) { throw "Satellite assembly was not produced." }
+
+      - name: Upload only FileConverter.resources.dll
+        uses: actions/upload-artifact@v4
+        with:
+          name: FileConverter-resources-pt-PT
+          path: ${{ runner.temp }}/pt-PT/FileConverter.resources.dll
+          if-no-files-found: error
