@@ -100,7 +100,7 @@ namespace FileConverterExtension
 
             ToolStripMenuItem fileConverterItem = new ToolStripMenuItem
             {
-                Text = "File Converter",
+                Text = "Converter ficheiro",
                 Image = new Icon(Properties.Resources.ApplicationIcon, SystemInformation.SmallIconSize).ToBitmap(),
             };
 
@@ -173,7 +173,7 @@ namespace FileConverterExtension
             {
                 ToolStripMenuItem subItem = new ToolStripMenuItem
                 {
-                    Text = "Configure presets...",
+                    Text = "Configurar as predefinições",
                     Image = new Icon(Properties.Resources.SettingsIcon, SystemInformation.SmallIconSize).ToBitmap(),
                 };
 

@@ -1,0 +1,86 @@
+name: Build FileConverter MSI (pt-PT)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - localization/pt-PT-review
+    paths:
+      - 'Application/**'
+      - 'Installer/**'
+      - 'Middleware/**'
+      - '.github/workflows/build-pt-pt-msi.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-msi:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout localization branch
+        uses: actions/checkout@v5
+        with:
+          ref: localization/pt-PT-review
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Configure unsigned build
+        shell: pwsh
+        run: |
+          $signConfig = "Installer/Installer.sign"
+          if (-not (Test-Path $signConfig)) {
+            Set-Content -Path $signConfig -Value '<Project />' -Encoding utf8
+            Write-Host "Created minimal unsigned-build config because Installer.sign is not present."
+          }
+
+      - name: Restore NuGet packages
+        shell: pwsh
+        run: |
+          nuget restore FileConverter.sln -NonInteractive
+          if ($LASTEXITCODE -ne 0) { throw "NuGet restore failed with exit code $LASTEXITCODE" }
+
+      - name: Build application and extension
+        shell: pwsh
+        run: |
+          msbuild FileConverter.sln /m /p:Configuration=Release /p:Platform=x64 /p:RestoreIgnoreFailedSources=true
+          if ($LASTEXITCODE -ne 0) { throw "Solution build failed with exit code $LASTEXITCODE" }
+
+          $satelliteDll = Get-ChildItem Application/FileConverter/bin/x64/Release -Filter "FileConverter.resources.dll" -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($satelliteDll) {
+            throw "Unexpected satellite resource assembly found: $($satelliteDll.FullName)"
+          }
+          $languageRoot = "Application/FileConverter/bin/x64/Release/Languages"
+          if (Test-Path $languageRoot) {
+            throw "Unexpected Languages folder was generated: $languageRoot"
+          }
+          Write-Host "Verified: Portuguese resources are embedded in the main assembly; no language folders or satellite DLLs were generated."
+
+      - name: Build MSI installer
+        shell: pwsh
+        run: |
+          msbuild Installer/Installer.wixproj /restore /p:Configuration=Release /p:Platform=x64 /p:RestoreIgnoreFailedSources=true
+          if ($LASTEXITCODE -ne 0) { throw "Installer build failed with exit code $LASTEXITCODE" }
+
+          $msi = "Installer/bin/x64/Release/FileConverter-setup.msi"
+          if (-not (Test-Path $msi)) {
+            $found = Get-ChildItem Installer -Filter "FileConverter-setup.msi" -Recurse -File | Select-Object -First 1
+            if (-not $found) { throw "MSI output was not found." }
+            $msi = $found.FullName
+          }
+          New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP\msi-output" | Out-Null
+          Copy-Item $msi "$env:RUNNER_TEMP\msi-output\FileConverter-pt-PT.msi" -Force
+          if ((Get-Item "$env:RUNNER_TEMP\msi-output\FileConverter-pt-PT.msi").Length -le 0) { throw "MSI output is empty." }
+
+      - name: Upload installer MSI
+        uses: actions/upload-artifact@v4
+        with:
+          name: FileConverter-Installer-pt-PT
+          path: ${{ runner.temp }}/msi-output/FileConverter-pt-PT.msi
+          if-no-files-found: error

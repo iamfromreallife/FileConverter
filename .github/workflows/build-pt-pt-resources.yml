@@ -1,0 +1,69 @@
+name: Build pt-PT satellite resource DLL
+
+on:
+  push:
+    branches:
+      - localization/pt-PT-review
+    paths:
+      - 'Application/FileConverter/Properties/Resources.pt-PT.resx'
+      - '.github/workflows/build-pt-pt-resources.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-resource-dll:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout localization branch
+        uses: actions/checkout@v5
+        with:
+          ref: localization/pt-PT-review
+
+      - name: Compile only the pt-PT resource assembly
+        shell: pwsh
+        run: |
+          $outDir = "$env:RUNNER_TEMP\pt-PT"
+          $projectDir = "$env:RUNNER_TEMP\pt-PT-project"
+          New-Item -ItemType Directory -Force -Path $outDir, $projectDir | Out-Null
+
+          # Use the installed .NET SDK/MSBuild resource pipeline instead of
+          # relying on ResGen.exe being present in a particular VS directory.
+          $project = @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net8.0</TargetFramework>
+              <AssemblyName>FileConverter</AssemblyName>
+              <RootNamespace>FileConverter</RootNamespace>
+              <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+              <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+            </PropertyGroup>
+            <ItemGroup>
+              <EmbeddedResource Include="RESOURCE_FILE">
+                <Culture>pt-PT</Culture>
+                <LogicalName>FileConverter.Properties.Resources.resources</LogicalName>
+              </EmbeddedResource>
+            </ItemGroup>
+          </Project>
+          '@
+          $resourcePath = (Resolve-Path "Application/FileConverter/Properties/Resources.pt-PT.resx").Path
+          $project = $project.Replace("RESOURCE_FILE", $resourcePath.Replace([string][char]92, "/"))
+          Set-Content -Path "$projectDir\FileConverter.csproj" -Value $project -Encoding utf8
+
+          dotnet build "$projectDir\FileConverter.csproj" --configuration Release --output "$outDir\build"
+          if ($LASTEXITCODE -ne 0) { throw "dotnet build failed with exit code $LASTEXITCODE" }
+
+          $builtDll = Get-ChildItem -Path "$outDir\build" -Filter "FileConverter.resources.dll" -Recurse -File |
+            Select-Object -First 1
+          if (-not $builtDll) { throw "The pt-PT satellite assembly was not produced." }
+
+          Copy-Item $builtDll.FullName "$outDir\FileConverter.resources.dll" -Force
+          if ((Get-Item "$outDir\FileConverter.resources.dll").Length -le 0) { throw "The produced DLL is empty." }
+
+      - name: Upload only FileConverter.resources.dll
+        uses: actions/upload-artifact@v4
+        with:
+          name: FileConverter-resources-pt-PT
+          path: ${{ runner.temp }}/pt-PT/FileConverter.resources.dll
+          if-no-files-found: error

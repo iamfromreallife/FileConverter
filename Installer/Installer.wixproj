@@ -20,7 +20,7 @@
       <Project>{0c44ca69-42d6-4357-bdfd-83069d1aba2f}</Project>
       <Private>True</Private>
       <DoNotHarvest>True</DoNotHarvest>
-      <RefProjectOutputGroups>Binaries;Content;Satellites</RefProjectOutputGroups>
+      <RefProjectOutputGroups>Binaries;Content</RefProjectOutputGroups>
       <RefTargetDir>INSTALLFOLDER</RefTargetDir>
     </ProjectReference>
     <ProjectReference Include="..\Application\FileConverter\FileConverter.csproj">
@@ -32,14 +32,7 @@
       <RefTargetDir>INSTALLFOLDER</RefTargetDir>
     </ProjectReference>
   </ItemGroup>
-  <ItemGroup>
-    <HarvestDirectory Include="..\Application\FileConverter\$(OutputPath)Languages">
-      <ComponentGroupName>Languages</ComponentGroupName>
-      <DirectoryRefId>INSTALLFOLDER</DirectoryRefId>
-      <PreprocessorVariable>var.FileConverter.TargetDir</PreprocessorVariable>
-      <SuppressRegistry>true</SuppressRegistry>
-    </HarvestDirectory>
-  </ItemGroup>
+  
   <!-- congigure the project to sign the installer. Comment this line to produce an unsigned installer. -->
   <Import Project=".\Installer.sign" Condition=" '$(Configuration)' == 'Release' " />
 </Project>
