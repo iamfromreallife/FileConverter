@@ -52,6 +52,39 @@ jobs:
           msbuild FileConverter.sln /m /p:Configuration=Release /p:Platform=x64 /p:RestoreIgnoreFailedSources=true
           if ($LASTEXITCODE -ne 0) { throw "Solution build failed with exit code $LASTEXITCODE" }
 
+          $ptPtDll = "Application/FileConverter/bin/x64/Release/Languages/pt-PT/FileConverter.resources.dll"
+          if (-not (Test-Path $ptPtDll)) {
+            $ptPtDll = Get-ChildItem Application/FileConverter -Filter "FileConverter.resources.dll" -Recurse -File |
+              Where-Object { $_.FullName -match '[\\/]Languages[\\/]pt-PT[\\/]FileConverter\.resources\.dll
+        shell: pwsh
+        run: |
+          msbuild Installer/Installer.wixproj /restore /p:Configuration=Release /p:Platform=x64 /p:RestoreIgnoreFailedSources=true
+          if ($LASTEXITCODE -ne 0) { throw "Installer build failed with exit code $LASTEXITCODE" }
+
+          $msi = "Installer/bin/x64/Release/FileConverter-setup.msi"
+          if (-not (Test-Path $msi)) {
+            $found = Get-ChildItem Installer -Filter "FileConverter-setup.msi" -Recurse -File | Select-Object -First 1
+            if (-not $found) { throw "MSI output was not found." }
+            $msi = $found.FullName
+          }
+          New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP\msi-output" | Out-Null
+          Copy-Item $msi "$env:RUNNER_TEMP\msi-output\FileConverter-pt-PT.msi" -Force
+          if ((Get-Item "$env:RUNNER_TEMP\msi-output\FileConverter-pt-PT.msi").Length -le 0) { throw "MSI output is empty." }
+
+      - name: Upload installer MSI
+        uses: actions/upload-artifact@v4
+        with:
+          name: FileConverter-Installer-pt-PT
+          path: ${{ runner.temp }}/msi-output/FileConverter-pt-PT.msi
+          if-no-files-found: error
+ } |
+              Select-Object -First 1 -ExpandProperty FullName
+          }
+          if (-not $ptPtDll -or -not (Test-Path $ptPtDll)) {
+            throw "The pt-PT satellite resource DLL was not produced by the application build."
+          }
+          Write-Host "Verified pt-PT resource assembly: $ptPtDll"
+
       - name: Build MSI installer
         shell: pwsh
         run: |
