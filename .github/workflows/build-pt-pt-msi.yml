@@ -40,16 +40,22 @@ jobs:
             Write-Host "Created a minimal unsigned-build config because Installer.sign is not present."
           }
 
+      - name: Restore NuGet packages
+        shell: pwsh
+        run: |
+          nuget restore FileConverter.sln -NonInteractive
+          if ($LASTEXITCODE -ne 0) { throw "NuGet restore failed with exit code $LASTEXITCODE" }
+
       - name: Build application and extension
         shell: pwsh
         run: |
-          msbuild FileConverter.sln /restore /m /p:Configuration=Release /p:Platform=x64 /p:RestoreIgnoreFailedSources=true
+          msbuild FileConverter.sln /m /p:Configuration=Release /p:Platform=x64 /p:RestoreIgnoreFailedSources=true
           if ($LASTEXITCODE -ne 0) { throw "Solution build failed with exit code $LASTEXITCODE" }
 
       - name: Build MSI installer
         shell: pwsh
         run: |
-          dotnet build Installer/Installer.wixproj --configuration Release --property:Platform=x64
+          msbuild Installer/Installer.wixproj /restore /p:Configuration=Release /p:Platform=x64 /p:RestoreIgnoreFailedSources=true
           if ($LASTEXITCODE -ne 0) { throw "Installer build failed with exit code $LASTEXITCODE" }
 
           $msi = "Installer/bin/x64/Release/FileConverter-setup.msi"
