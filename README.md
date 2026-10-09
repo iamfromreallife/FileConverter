@@ -1,5 +1,7 @@
 # File Converter
 
+**Português (Portugal):** [consultar o README em português](README.pt-PT.md).
+
 ## Description
 
 **File Converter** is a very simple tool which allows you to convert and compress one or several file(s) using the context menu of windows explorer.
