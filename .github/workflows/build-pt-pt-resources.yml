@@ -28,16 +28,15 @@ jobs:
           $outDir = "$env:RUNNER_TEMP\pt-PT"
           New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
-          $resgen = Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft SDKs\Windows\**\ResGen.exe" -ErrorAction SilentlyContinue |
-            Sort-Object FullName -Descending | Select-Object -First 1
-          if (-not $resgen) {
-            $resgen = Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft Visual Studio\**\ResGen.exe" -ErrorAction SilentlyContinue |
+          $vsRoot = "${env:ProgramFiles(x86)}\Microsoft Visual Studio"
+          $resgen = if (Test-Path $vsRoot) {
+            Get-ChildItem $vsRoot -Filter ResGen.exe -File -Recurse -ErrorAction SilentlyContinue |
               Sort-Object FullName -Descending | Select-Object -First 1
           }
           if (-not $resgen) { throw "ResGen.exe was not found on the Windows runner." }
 
-          $al = Get-ChildItem "${env:WINDIR}\Microsoft.NET\Framework64\**\al.exe" -ErrorAction SilentlyContinue |
-            Sort-Object FullName -Descending | Select-Object -First 1
+          $alPath = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\al.exe"
+          $al = if (Test-Path $alPath) { Get-Item $alPath }
           if (-not $al) { throw "al.exe was not found on the Windows runner." }
 
           & $resgen.FullName $resx "$outDir\FileConverter.resources.pt-PT.resources"
